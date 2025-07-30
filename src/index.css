@@ -11,7 +11,8 @@
     font-family: 'SBL Hebrew', 'Times New Roman', serif;
     direction: rtl;
     text-align: right;
-    line-height: 1.8;
+    line-height: 1.8 !important;
+    font-size: 1.25em !important; /* Example: makes text 20px if root is 16px */
   }
   
   .english-text {

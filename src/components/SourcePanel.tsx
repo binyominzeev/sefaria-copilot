@@ -230,17 +230,21 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
       {/* Selected Source Detail */}
       {selectedSource && (
-        <div className="border-t border-gray-200 bg-gray-50 p-4">
+        <div className="border-t border-gray-200 bg-gray-50 p-4 max-h-64 overflow-y-auto">
           <h4 className="font-medium text-gray-900 mb-2">
             {selectedSource.ref}
           </h4>
-          <p className="text-sm text-gray-700 mb-3">
-            {selectedSource.text}
-          </p>
+          {/* Render formatted HTML for English text */}
+          <div
+            className="text-sm text-gray-700 mb-3"
+            dangerouslySetInnerHTML={{ __html: selectedSource.text }}
+          />
+          {/* Render formatted HTML for Hebrew text if present and different */}
           {selectedSource.heText && selectedSource.heText !== selectedSource.text && (
-            <p className="text-sm text-gray-600 hebrew-text mb-3">
-              {selectedSource.heText}
-            </p>
+            <div
+              className="text-sm text-gray-600 hebrew-text mb-3"
+              dangerouslySetInnerHTML={{ __html: selectedSource.heText }}
+            />
           )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500">

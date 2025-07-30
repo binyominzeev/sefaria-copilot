@@ -109,17 +109,6 @@ function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Source Panel */}
-        {isSourcePanelOpen && (
-          <div className="w-80 flex-shrink-0">
-            <SourcePanel
-              sources={sources}
-              onInsertSource={handleInsertSource}
-              className="h-full"
-            />
-          </div>
-        )}
-
         {/* Editor Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 p-6 overflow-auto">
@@ -159,6 +148,17 @@ function App() {
             </div>
           </div>
         </div>
+
+        {/* Source Panel (moved to the right) */}
+        {isSourcePanelOpen && (
+          <div className="w-80 flex-shrink-0 h-full overflow-y-auto">
+            <SourcePanel
+              sources={sources}
+              onInsertSource={handleInsertSource}
+              className="h-full"
+            />
+          </div>
+        )}
       </div>
 
       {/* Welcome Modal for first-time users */}

@@ -64,7 +64,110 @@ class SefariaApiService {
     }
   }
 
+  private openaiApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+
+  /**
+   * Uses OpenAI to extract or infer possible Jewish text references from any input (even implicit or in Hungarian).
+   */
+  private async aiDetectReferences(text: string): Promise<string[]> {
+    if (!this.openaiApiKey) return [];
+
+    const systemPrompt = `
+    You are an expert in Jewish texts and will act as an autocomplete assistant for a Torah article writer.
+Your task is to identify potential Torah references (e.g., Biblical verses, Mishnah tractates, Talmud folios, Midrash collections, Zohar, major commentaries, etc.) that the user is *likely trying to complete or is about to type* at the very end of their provided text.
+
+**Crucially, do NOT return references that are already fully present and identifiable within the main body of the text provided.** Focus exclusively on suggestions for the *last few words or the current incomplete thought* at the end of the input.
+
+Your output must be a JSON object with a single key: "references". The value of "references" should be an array of strings, where each string is a suggested Torah reference in its most common and precise format (e.g., "Genesis 1:1", "Shabbat 31a", "Mishnah Brachot 2:3", "Rashi on Genesis 1:1"). Provide up to 5 highly relevant suggestions.
+
+Do not include any additional text, explanations, or formatting. The output must be valid JSON.
+    `;
+
+    const userPrompt = text;
+
+    console.log('[Sefaria Copilot] OpenAI system prompt:', systemPrompt);
+    console.log('[Sefaria Copilot] OpenAI user prompt:', userPrompt);
+
+    try {
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini', // or 'gpt-4-turbo'
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          max_tokens: 128,
+          temperature: 0.8,
+          top_p: 1,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      // Log the full response
+      console.log('[Sefaria Copilot] OpenAI response:', response.data);
+
+      const content = response.data.choices[0].message.content;
+      // Remove Markdown code fences if present
+      const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/, '$1').trim();
+      try {
+        const refs = JSON.parse(cleaned);
+        if (Array.isArray(refs)) return refs;
+        if (refs && typeof refs === 'object' && Array.isArray(refs.references)) return refs.references;
+        return [];
+      } catch (parseError) {
+        console.error('[Sefaria Copilot] Failed to parse OpenAI response content:', cleaned, parseError);
+        return [];
+      }
+    } catch (e) {
+      console.error('[Sefaria Copilot] AI reference extraction failed:', e);
+      return [];
+    }
+  }
+
   async getSourceSuggestions(text: string): Promise<SourceSuggestion[]> {
+    // 1. Try AI-based detection first
+    const aiRefs = await this.aiDetectReferences(text);
+    let suggestions: SourceSuggestion[] = [];
+
+    for (const ref of aiRefs) {
+      try {
+        const sefariaText = await this.getText(ref);
+        if (sefariaText) {
+          suggestions.push({
+            id: `ai-${ref}`,
+            ref: sefariaText.ref,
+            heRef: sefariaText.heRef,
+            text: Array.isArray(sefariaText.text) ? sefariaText.text.join(' ') : sefariaText.text,
+            heText: Array.isArray(sefariaText.he) ? sefariaText.he.join(' ') : sefariaText.he,
+            category: sefariaText.primary_category,
+            confidence: 0.95,
+            matchedText: ref,
+            book: sefariaText.book
+          });
+        }
+      } catch (e) {
+        // fallback: ignore if not found
+      }
+    }
+
+    // 2. Fallback to regex-based detection if AI found nothing
+    if (suggestions.length === 0) {
+      suggestions = await this.getSourceSuggestionsRegex(text);
+    }
+
+    return suggestions.slice(0, 10);
+  }
+
+  /**
+   * The original regex-based suggestion logic, renamed for clarity.
+   */
+  private async getSourceSuggestionsRegex(text: string): Promise<SourceSuggestion[]> {
     // First, try to detect potential references using common patterns
     const potentialRefs = this.detectPotentialReferences(text);
     const suggestions: SourceSuggestion[] = [];
